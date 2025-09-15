@@ -1,0 +1,25 @@
+.sf-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+.sf-card {
+  position: absolute;
+  inset: 0;
+  will-change: transform, opacity;
+  contain: layout paint style;
+  touch-action: pan-y;
+}
+.sf-card--sleep {
+  content-visibility: auto;
+  contain-intrinsic-size: 800px 600px;
+  pointer-events: none;
+  opacity: 0;
+}
+.sf-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.24);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
