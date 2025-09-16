@@ -17,14 +17,30 @@ function Controls() {
       }}
     >
       <button onClick={() => flow.push("AComponent", { ts: Date.now() })}>
-        Push Detail
+        Push A
+      </button>
+      <button onClick={() => flow.push("BComponent", { ts: Date.now() })}>
+        Push B
+      </button>
+      <button
+        onClick={() => flow.replace("AComponent", { replaced: Date.now() })}
+      >
+        Replace - A
       </button>
       <button
         onClick={() => flow.replace("BComponent", { replaced: Date.now() })}
       >
-        Replace → Detail
+        Replace - B
       </button>
-      <button onClick={() => flow.pop()}>Pop</button>
+      <button
+        onClick={() => {
+          console.log("pop");
+          flow.pop();
+          console.log("popped");
+        }}
+      >
+        Pop
+      </button>
     </div>
   );
 }

@@ -22,8 +22,8 @@ export const { Stack, useFlow } = stackflow({
   activities: { Home, AComponent, BComponent },
   plugins: [
     vanillaRendererPlugin({
-      retainTop: 2,
-      mode: "sleep",
+      retainTop: 5,
+      mode: "unmount",
       params: { registry: { Home, AComponent, BComponent } },
     }),
   ],

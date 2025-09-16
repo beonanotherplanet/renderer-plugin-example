@@ -21,6 +21,35 @@ export const flow = {
   }) as () => void,
 };
 
+// 전역 이벤트 버스(모듈 복제 여부와 무관하게 단일 지점)
+const BUS_KEY = "__sf_bus";
+const bus: EventTarget =
+  (globalThis as any)[BUS_KEY] ??
+  ((globalThis as any)[BUS_KEY] = new EventTarget());
+
+// 전역 액션 레퍼런스(가장 직통 경로)
+const ACTIONS_KEY = "__sf_actions";
+const actionsRef: any =
+  (globalThis as any)[ACTIONS_KEY] ?? ((globalThis as any)[ACTIONS_KEY] = {});
+
+// 1순위: 전역 레퍼런스(직통) → 2순위: 버스(브로드캐스트)
+flow.push = (name, params) => {
+  if (actionsRef.push) return actionsRef.push(name, params);
+  return bus.dispatchEvent(
+    new CustomEvent("sf:push", { detail: { name, params } })
+  );
+};
+flow.replace = (name, params) => {
+  if (actionsRef.replace) return actionsRef.replace(name, params);
+  return bus.dispatchEvent(
+    new CustomEvent("sf:replace", { detail: { name, params } })
+  );
+};
+flow.pop = () => {
+  if (actionsRef.pop) return actionsRef.pop();
+  return bus.dispatchEvent(new CustomEvent("sf:pop"));
+};
+
 /** 바닐라 컨트롤러: React 밖에서 DOM을 직접 제어(전환/스와이프/z-index) */
 function createVanillaController({
   retainTop,
@@ -176,17 +205,35 @@ function ActivityShell({
 
 function FlowBridge() {
   const actions = useActions();
-  useEffect(() => {
-    flow.push = actions.push;
-    flow.replace = actions.replace;
-    flow.pop = actions.pop;
+
+  // 마운트 직후 동기 결선: 전역 액션 참조 + 버스 둘 다 연결
+  useLayoutEffect(() => {
+    // 전역 직결
+    actionsRef.push = actions.push;
+    actionsRef.replace = actions.replace;
+    actionsRef.pop = actions.pop;
+    // 버스 리스너(백업 경로)
+    const onPush = (e: Event) => {
+      const { name, params } = (e as CustomEvent).detail || {};
+      actions.push(name, params);
+    };
+    const onReplace = (e: Event) => {
+      const { name, params } = (e as CustomEvent).detail || {};
+      actions.replace(name, params);
+    };
+    const onPop = () => {
+      actions.pop(); // ❗가드 제거: 외부에서 pop 호출 시 즉시 실행
+    };
+    bus.addEventListener("sf:push", onPush as EventListener);
+    bus.addEventListener("sf:replace", onReplace as EventListener);
+    bus.addEventListener("sf:pop", onPop as EventListener);
     return () => {
-      // 언마운트 시 안전하게 no-op으로 되돌림(선택)
-      flow.push = (..._args) =>
-        console.warn("[vanilla-renderer] flow.push not ready");
-      flow.replace = (..._args) =>
-        console.warn("[vanilla-renderer] flow.replace not ready");
-      flow.pop = () => console.warn("[vanilla-renderer] flow.pop not ready");
+      actionsRef.push = undefined;
+      actionsRef.replace = undefined;
+      actionsRef.pop = undefined;
+      bus.removeEventListener("sf:push", onPush as EventListener);
+      bus.removeEventListener("sf:replace", onReplace as EventListener);
+      bus.removeEventListener("sf:pop", onPop as EventListener);
     };
   }, [actions]);
   return null;
