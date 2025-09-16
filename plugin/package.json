@@ -1,0 +1,34 @@
+{
+  "name": "@local/stackflow-vanilla-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/vanilla-renderer.umd.cjs",
+  "module": "dist/vanilla-renderer.es.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/vanilla-renderer.es.js",
+      "require": "./dist/vanilla-renderer.umd.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "@types/react": ">=18",
+    "@types/react-dom": ">-18",
+    "@stackflow/react": "*",
+    "@stackflow/core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vite": "7.1.5",
+    "@vitejs/plugin-react": "5.0.2",
+    "vite-plugin-dts": "4.5.4"
+  },
+  "scripts": {
+    "build": "vite build",
+    "build:watch": "vite build --watch"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "stackflow-vanilla-renderer-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "5.0.2",
+    "typescript": "5.9.2",
+    "vite": "7.1.5"
+  },
+  "dependencies": {
+    "@local/stackflow-vanilla-renderer": "file:../plugin",
+    "@stackflow/core": "^1.2.0",
+    "@stackflow/react": "^1.6.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}
