@@ -1,5 +1,5 @@
 import { stackflow } from "@stackflow/react";
-// ✅ 빌드된 ESM 파일을 경로로 import
+// 빌드된 ESM 파일을 경로로 import
 import { vanillaRendererPlugin } from "@local/stackflow-vanilla-renderer";
 
 // 예시 액티비티들(React 컴포넌트)
