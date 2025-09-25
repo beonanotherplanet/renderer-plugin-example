@@ -1,0 +1,135 @@
+<# 
+  scripts/android/run-emulator.ps1
+
+  Windows에서: 
+  - Android SDK(Command-line tools) 자동 설치
+  - sdkmanager/avdmanager PATH 구성
+  - 라이선스 동의, 필요한 패키지 설치
+  - AVD 자동 생성(없을 때만)
+  - 에뮬레이터 실행
+  - adb 대기 후 (선택) APK 설치 & 실행
+
+  매개변수(전부 선택):
+    -AvdName       기본: Pixel_6_API_34
+    -ApiLevel      기본: 34
+    -SystemImage   기본: google_apis;x86_64
+    -ApkPath       기본: app\build\outputs\apk\debug\app-debug.apk
+    -Package       기본: com.yourpackage.name
+    -Build         기본: Auto (gradlew가 있으면 assembleDebug, 없으면 Skip) 
+#>
+
+param(
+  [string]$AvdName = "Pixel_6_API_34",
+  [int]$ApiLevel = 34,
+  [string]$SystemImage = "google_apis;x86_64",
+  [string]$ApkPath = "app\build\outputs\apk\debug\app-debug.apk",
+  [string]$Package = "com.yourpackage.name",
+  [ValidateSet("Auto","Skip","Force")]
+  [string]$Build = "Auto"
+)
+
+$ErrorActionPreference = "Stop"
+
+function Add-ToPath([string]$p) {
+  if (-not [string]::IsNullOrWhiteSpace($p) -and (Test-Path $p)) {
+    if (-not ($env:PATH -split ";" | ForEach-Object { $_.TrimEnd('\') } | Where-Object { $_ -eq $p.TrimEnd('\') })) {
+      $env:PATH = "$env:PATH;$p"
+    }
+  }
+}
+
+# 1) SDK 루트/도구 경로
+$sdkRoot = Join-Path $env:LOCALAPPDATA "Android\sdk"
+$cliLatestUrl = "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
+$cliZip = Join-Path $env:TEMP "cmdline-tools.zip"
+$cliBin = Join-Path $sdkRoot "cmdline-tools\latest\bin"
+$sdkmanager = Join-Path $cliBin "sdkmanager.bat"
+$avdmanager = Join-Path $cliBin "avdmanager.bat"
+$emulatorExe = Join-Path $sdkRoot "emulator\emulator.exe"
+$adbExe = Join-Path $sdkRoot "platform-tools\adb.exe"
+
+# 2) SDK 루트 폴더 준비
+if (!(Test-Path $sdkRoot)) {
+  New-Item -ItemType Directory -Force -Path $sdkRoot | Out-Null
+}
+
+# 3) Command-line tools 설치(없으면 다운로드/압축해제)
+if (!(Test-Path $sdkmanager)) {
+  Write-Host "`n[+] Downloading Android command-line tools..." -ForegroundColor Cyan
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  Invoke-WebRequest $cliLatestUrl -OutFile $cliZip -UseBasicParsing
+  Expand-Archive -Path $cliZip -DestinationPath (Join-Path $sdkRoot "cmdline-tools") -Force
+  if (Test-Path (Join-Path $sdkRoot "cmdline-tools\cmdline-tools")) {
+    Move-Item (Join-Path $sdkRoot "cmdline-tools\cmdline-tools") (Join-Path $sdkRoot "cmdline-tools\latest") -Force
+  } elseif (Test-Path (Join-Path $sdkRoot "cmdline-tools\tools")) {
+    Rename-Item (Join-Path $sdkRoot "cmdline-tools\tools") (Join-Path $sdkRoot "cmdline-tools\latest") -Force
+  }
+}
+
+# 4) PATH / ANDROID_SDK_ROOT 구성
+$env:ANDROID_SDK_ROOT = $sdkRoot
+Add-ToPath (Join-Path $sdkRoot "platform-tools")
+Add-ToPath (Join-Path $sdkRoot "emulator")
+Add-ToPath $cliBin
+
+# 5) 라이선스 동의 & 필수 패키지 설치
+Write-Host "`n[+] Accepting licenses & installing packages..." -ForegroundColor Cyan
+# 줄바꿈-없는 y 스트림
+"y`n" * 20 | & $sdkmanager --licenses | Out-Null
+
+$platformsId = "platforms;android-$ApiLevel"
+$sysImgId = "system-images;android-$ApiLevel;$SystemImage"
+
+& $sdkmanager --install "platform-tools" "emulator" $platformsId $sysImgId
+
+# 6) AVD 생성(없으면)
+$avdDir = Join-Path $env:USERPROFILE ".android\avd\$AvdName.avd"
+if (-not (Test-Path $avdDir)) {
+  Write-Host "`n[+] Creating AVD: $AvdName ($sysImgId)" -ForegroundColor Cyan
+  # 하드웨어 프로필 없이 기본 생성, 프롬프트에 'no' 넘김
+  "no`n" | & $avdmanager create avd -n $AvdName -k $sysImgId --force --abi "x86_64"
+}
+
+# 7) (선택) 프로젝트 빌드
+function Invoke-GradleBuild {
+  if (Test-Path ".\gradlew.bat") {
+    Write-Host "`n[+] Building (gradlew assembleDebug)..." -ForegroundColor Cyan
+    & ".\gradlew.bat" assembleDebug
+  } elseif (Test-Path ".\gradlew") {
+    Write-Host "`n[+] Building (./gradlew assembleDebug)..." -ForegroundColor Cyan
+    & ".\gradlew" assembleDebug
+  } else {
+    Write-Host "[i] gradlew not found. Skipping build." -ForegroundColor Yellow
+  }
+}
+
+switch ($Build) {
+  "Force" { Invoke-GradleBuild }
+  "Auto"  { if (Test-Path ".\gradlew" -or Test-Path ".\gradlew.bat") { Invoke-GradleBuild } }
+  default { }
+}
+
+# 8) 에뮬레이터 실행
+Write-Host "`n[+] Launching emulator: $AvdName" -ForegroundColor Cyan
+Start-Process $emulatorExe -ArgumentList "-avd `"$AvdName`""
+
+# 9) 디바이스 연결 대기
+Write-Host "[+] Waiting for device..." -ForegroundColor Cyan
+& $adbExe wait-for-device
+
+# 10) APK 설치/실행(있을 경우)
+if (Test-Path $ApkPath) {
+  Write-Host "[+] Installing APK: $ApkPath" -ForegroundColor Cyan
+  & $adbExe install -r $ApkPath
+
+  if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($Package)) {
+    Write-Host "[+] Launching app: $Package" -ForegroundColor Cyan
+    & $adbExe shell monkey -p $Package -c android.intent.category.LAUNCHER 1 | Out-Null
+  } else {
+    Write-Host "[i] APK install failed or no package specified; skip auto-launch." -ForegroundColor Yellow
+  }
+} else {
+  Write-Host "[i] APK not found at '$ApkPath'. Skipping install & launch." -ForegroundColor Yellow
+}
+
+Write-Host "`n✔ Done." -ForegroundColor Green
